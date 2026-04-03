@@ -1,37 +1,23 @@
 # CarService App
 
-Laravel 13 alapú szervizelőrendszer Docker környezetben.
+Laravel alapú autószerviz nyilvántartó alkalmazás, Docker környezetben futtatva.
 
 ---
 
-## Rendszerkövetelmények
+## Technológiai stack
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) telepítve és elindítva
-
----
-
-## Technológiai stack és verziók
-
-| Technológia | Verzió |
-|-------------|--------|
+| Komponens | Verzió |
+|-----------|--------|
 | PHP | 8.4-fpm |
-| Laravel | 13 |
+| Laravel | 13.2.0 |
 | MySQL | 8.4 |
-| Nginx | alpine (legújabb) |
-| Node.js | alpine (legújabb) |
-| Composer | legújabb |
+| Nginx | alpine (latest) |
+| Node.js | alpine (latest) |
+| Composer | latest |
 
-### PHP extensions
+### Telepített PHP extension-ök
 
-- pdo_mysql
-- mbstring
-- exif
-- pcntl
-- bcmath
-- gd
-- zip
-- opcache
-- intl
+`pdo_mysql`, `mbstring`, `exif`, `pcntl`, `bcmath`, `gd`, `zip`, `opcache`, `intl`
 
 ---
 
@@ -39,16 +25,105 @@ Laravel 13 alapú szervizelőrendszer Docker környezetben.
 
 | Service | Container neve | Port |
 |---------|---------------|------|
-| PHP-FPM (Laravel) | laravel_app | 9000 |
-| Nginx | laravel_nginx | 8080 |
-| MySQL | laravel_mysql | 3306 |
-| Vite dev server | laravel_vite | 5173 |
+| PHP-FPM (Laravel) | `laravel_app` | 9000 |
+| Nginx | `laravel_nginx` | 8080 |
+| MySQL | `laravel_mysql` | 3306 |
+| Vite dev server | `laravel_vite` | 5173 |
 
 ---
 
-## Konfiguráció
+## Előfeltételek
 
-### PHP (docker/php/local.ini)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) telepítve és futtatva
+- Git
+
+---
+
+## Telepítés és indítás
+
+### 1. Repó klónozása
+
+```bash
+git clone https://github.com/Ravenhun116/carservice_app.git
+cd carservice_app
+```
+
+### 2. Környezeti konfiguráció
+
+Másold le az `.env.example` fájlt `.env` névvel:
+
+```bash
+cp .env.example .env
+```
+
+Az `.env` fájlban az adatbázis beállítások:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=laravel
+DB_USERNAME=laravel
+DB_PASSWORD=secret
+```
+
+> **Fontos:** A `DB_HOST` értéke `mysql` legyen (a Docker service neve), nem `127.0.0.1`.
+
+### 3. Docker containerek indítása
+
+```bash
+docker-compose up -d --build
+```
+
+Az első indításkor az `entrypoint.sh` script automatikusan elvégzi:
+- megvárja, hogy a MySQL elinduljon
+- lefuttatja a migrációkat (`php artisan migrate`)
+- betölti a seed adatokat, ha a táblák üresek (`php artisan db:seed`)
+
+### 4. Composer függőségek telepítése
+
+```bash
+docker-compose exec app composer install
+```
+
+### 5. APP_KEY generálása
+
+```bash
+docker-compose exec app php artisan key:generate
+```
+
+### 6. Frontend build
+
+```bash
+docker-compose exec app npm install
+docker-compose exec app npm run build
+```
+
+### 7. Az alkalmazás elérése
+
+| Felület | URL |
+|---------|-----|
+| Laravel alkalmazás | http://localhost:8080 |
+| Vite dev server | http://localhost:5173 |
+| MySQL (külső kliens) | 127.0.0.1:3306 |
+
+---
+
+## Adatbázis kapcsolat külső kliensből (pl. DBeaver, TablePlus)
+
+| Beállítás | Érték |
+|-----------|-------|
+| Host | `127.0.0.1` |
+| Port | `3306` |
+| Database | `laravel` |
+| Username | `laravel` |
+| Password | `secret` |
+| SSL | disabled |
+| Allow Public Key Retrieval | true |
+
+---
+
+## PHP konfiguráció (`docker/php/local.ini`)
 
 ```ini
 upload_max_filesize = 40M
@@ -57,114 +132,55 @@ memory_limit = 256M
 max_execution_time = 600
 ```
 
-### MySQL
-
-- Secure transport kikapcsolva (--require-secure-transport=OFF)
-- Adatok perzisztens volume-ban tárolva (mysql_data)
-
-### .env adatbázis beállítások
-
-```dotenv
-DB_CONNECTION=mysql
-DB_HOST=mysql
-DB_PORT=3306
-DB_DATABASE=laravel
-DB_USERNAME=laravel
-DB_PASSWORD=secret
-```
-
----
-
-## Telepítés és indítás
-
-### 1. Laravel telepítése
-
-A projekt szülőmappájából:
-
-```bash
-docker run --rm -v $(pwd):/app composer create-project laravel/laravel carservice_app
-```
-
-### 2. Docker fájlok elhelyezése
-
-```
-carservice_app/
-├── Dockerfile
-├── docker-compose.yml
-└── docker/
-    ├── nginx/
-    │   └── default.conf
-    ├── php/
-    │   └── local.ini
-    └── entrypoint.sh
-```
-
-### 3. Seed adatok elhelyezése
-
-```
-database/
-└── data/
-    ├── clients.json
-    ├── cars.json
-    └── services.json
-```
-
-### 4. .env beállítása
-
-```dotenv
-DB_CONNECTION=mysql
-DB_HOST=mysql
-DB_PORT=3306
-DB_DATABASE=laravel
-DB_USERNAME=laravel
-DB_PASSWORD=secret
-```
-
-### 5. Docker indítása
-
-```bash
-cd carservice_app
-docker-compose up -d --build
-```
-
-Az indítás során az entrypoint script automatikusan:
-- Megvárja hogy a MySQL elinduljon
-- Lefuttatja a migrációkat
-- Betölti a seed adatokat (csak ha a táblák üresek)
-
-
-## Az alkalmazás elérése
-
-| Szolgáltatás | URL |
-|-------------|-----|
-| Laravel app | http://localhost:8080 |
-| Vite dev server | http://localhost:5173 |
-| MySQL | 127.0.0.1:3306 |
-
 ---
 
 ## Hasznos parancsok
 
-| Parancs | Leírás |
-|---------|--------|
-| docker-compose up -d --build | Containerek indítása és buildelése |
-| docker-compose down | Containerek leállítása |
-| docker-compose down -v | Containerek leállítása + adatok törlése |
-| docker-compose logs app | App logok megtekintése |
-| docker-compose exec app php artisan migrate | Migráció futtatása |
-| docker-compose exec app php artisan db:seed | Seed adatok betöltése |
-| docker-compose exec app php artisan route:clear | Route cache törlése |
+```bash
+# Containerek indítása
+docker-compose up -d --build
+
+# Containerek leállítása
+docker-compose down
+
+# Containerek leállítása + adatok törlése
+docker-compose down -v
+
+# App logok megtekintése
+docker-compose logs app
+
+# Migráció futtatása
+docker-compose exec app php artisan migrate
+
+# Seed adatok betöltése
+docker-compose exec app php artisan db:seed
+
+# Route cache törlése
+docker-compose exec app php artisan route:clear
+
+# Artisan parancs futtatása általánosan
+docker-compose exec app php artisan <parancs>
+```
 
 ---
 
-## Adatbázis kapcsolat (pl. DBeaver)
+## Projektstruktúra (főbb mappák)
 
-| Beállítás | Érték |
-|-----------|-------|
-| Host | 127.0.0.1 |
-| Port | 3306 |
-| Database | laravel |
-| Username | laravel |
-| Password | secret |
-| SSL | disabled |
-| Allow Public Key Retrieval | true |
+```
+carservice_app/
+├── app/                  # Laravel alkalmazás (Models, Controllers, stb.)
+├── config/               # Laravel konfigurációs fájlok
+├── database/
+│   ├── migrations/       # Adatbázis migrációk
+│   └── seeders/          # Seed adatok
+├── docker/
+│   ├── nginx/default.conf
+│   ├── php/local.ini
+│   └── entrypoint.sh
+├── public/               # Webszerver gyökér
+├── resources/            # Blade nézetek, CSS, JS
+├── routes/               # Útvonaldefiníciók
+├── .env.example          # Környezeti változók mintafájl
+├── docker-compose.yml
+└── Dockerfile
+```
